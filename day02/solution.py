@@ -31,11 +31,7 @@ def part01(inputs: str) -> None:
 
 def is_invalid_recursive(x: str, seq_len: int) -> bool:
     if seq_len == 0: return False 
-
-    if x[:seq_len] * (len(x) // seq_len) == x:
-        return True
-    else:
-        return is_invalid_recursive(x, seq_len - 1)
+    return x[:seq_len] * (len(x) // seq_len) == x or is_invalid_recursive(x, seq_len - 1)
 
 
 def part02(inputs: str) -> None:
