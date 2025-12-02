@@ -1,0 +1,5 @@
+*.py[oc]
+__pycache__/
+inputs.txt
+.DS_Store
+*.swp
