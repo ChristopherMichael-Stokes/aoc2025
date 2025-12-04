@@ -84,9 +84,8 @@ def part02(inputs: list[str]) -> None:
         grid = plot_accessible(grid, THRESHOLD)
         n_rolls_next = sum([r.count(USED) for r in grid.grid])
 
-    # print(next_grid)
+    # print(grid)
     print(f'{n_rolls_current=}')
-    pass
     
 
 if __name__=="__main__":
