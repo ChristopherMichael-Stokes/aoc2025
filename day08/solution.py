@@ -10,6 +10,22 @@ def distance(x: Sequence[int], y: Sequence[int]) -> float:
     return sqrt(sum((a - b) ** 2 for (a, b) in zip(x, y)))
 
 
+def merge_circuits(circuits: list[set[int]]) -> list[set[int]]:
+    made_merges = True
+    while made_merges:
+        made_merges = False
+        for i in range(len(circuits)):
+            j = i + 1
+            while j < len(circuits):
+                if circuits[i] & circuits[j]:
+                    circuits[i] |= circuits[j]
+                    circuits.pop(j)
+                    made_merges = True
+                else:
+                    j += 1
+    return circuits
+
+
 def part01(inputs: list[str]) -> None:
     assert len(inputs) == 20 or len(inputs) == 1000
     N_PAIRS = 10 if len(inputs) == 20 else 1000
@@ -19,31 +35,14 @@ def part01(inputs: list[str]) -> None:
         [distance(box, other) for other in junctions] for box in junctions
     ]
 
-    # make flat list of right hand side of matrix (past diagonal)
-    values = dict()
+    values = dict()  # Flat list of right hand side of matrix (past diagonal)
     for i, row in enumerate(adjacency_matrix):
         for j, v in enumerate(row):
             if j > i:
                 values[v] = (i, j)
 
-    b = sorted(list(values.keys()), reverse=True)
-    circuits = [set(values[v]) for v in b[-N_PAIRS:]]  # Wire up N closest junctions
-
-    # Merge circuits iteratively until no merges are possible
-    made_merges = True
-    while made_merges:
-        made_merges = False
-        for i, _ in enumerate(circuits):
-            j = i + 1
-            while j < len(circuits):
-                if circuits[i] & circuits[j]:  # has overlap
-                    circuits[i] |= circuits[j]  # merge into left
-                    circuits.pop(j)  # delete circuit j
-                    made_merges = True
-                else:
-                    # only increment if len(circuits) doesn't change
-                    j += 1
-
+    ordered_connections = sorted(list(values.keys()), reverse=True)
+    circuits = merge_circuits([set(values[v]) for v in ordered_connections[-N_PAIRS:]])
     final_connections = sorted(circuits, key=len)
     print(
         len(final_connections[-3])
@@ -62,36 +61,25 @@ def part02(inputs: list[str]) -> None:
         [distance(box, other) for other in junctions] for box in junctions
     ]
 
-    # make flat list of right hand side of matrix (past diagonal)
     values = dict()
     for i, row in enumerate(adjacency_matrix):
         for j, v in enumerate(row):
             if j > i:
                 values[v] = (i, j)
 
-    b = sorted(list(values.keys()), reverse=True)
-    for n_connections in range(N_PAIRS, len(b)):
-        circuits = [
-            set(values[v]) for v in b[-n_connections:]
-        ]  # Wire up N closest junctions
-        made_merges = True
-        while made_merges:
-            made_merges = False
-            i = 0
-            while i < len(circuits):
-                j = i + 1
-                while j < len(circuits):
-                    if circuits[i] & circuits[j]:  # has overlap
-                        circuits[i] |= circuits[j]  # merge into left
-                        circuits.pop(j)  # delete circuit j
-                        made_merges = True
-                    else:
-                        # only increment if len(circuits) doesn't change
-                        j += 1
-                i += 1
+    ordered_connections = sorted(list(values.keys()), reverse=True)
+    circuits = merge_circuits(
+        [set(values[v]) for v in ordered_connections[-N_PAIRS:]]
+    )  # Initial circuit / same as part 1
 
-        if len(circuits) == 1 and all(i in circuits[0] for i in range(len(junctions))):
-            pair = values[b[-n_connections]]
+    # Add each subsequent pair until we have all ids in a single circuit
+    for n_connections in range(N_PAIRS + 1, len(ordered_connections)):
+        new_pair = set(values[ordered_connections[-n_connections]])
+        circuits.append(new_pair)
+        circuits = merge_circuits(circuits)
+
+        if len(circuits) == 1 and len(circuits[0]) == len(junctions):
+            pair = values[ordered_connections[-n_connections]]
             print(junctions[pair[0]][0] * junctions[pair[1]][0])
             break
 
