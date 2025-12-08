@@ -2,6 +2,7 @@
 # requires-python = ">=3.14"
 # dependencies = []
 # ///
+from functools import cache
 from math import sqrt
 from typing import Sequence
 
@@ -26,11 +27,10 @@ def merge_circuits(circuits: list[set[int]]) -> list[set[int]]:
     return circuits
 
 
-def part01(inputs: list[str]) -> None:
-    assert len(inputs) == 20 or len(inputs) == 1000
-    N_PAIRS = 10 if len(inputs) == 20 else 1000
-
-    junctions: list[list[int]] = [list(int(i) for i in l.split(",")) for l in inputs]
+@cache
+def get_connection_lengths(
+    junctions: tuple[tuple[int, ...]],
+) -> dict[float, tuple[int, int]]:
     adjacency_matrix: list[list[float]] = [
         [distance(box, other) for other in junctions] for box in junctions
     ]
@@ -41,31 +41,33 @@ def part01(inputs: list[str]) -> None:
             if j > i:
                 values[v] = (i, j)
 
+    return values
+
+
+def part01(inputs: list[str]) -> None:
+    assert len(inputs) == 20 or len(inputs) == 1000
+    N_PAIRS = 10 if len(inputs) == 20 else 1000
+
+    junctions = [tuple(int(i) for i in l.split(",")) for l in inputs]
+    values = get_connection_lengths(tuple(junctions))
+
     ordered_connections = sorted(list(values.keys()), reverse=True)
     circuits = merge_circuits([set(values[v]) for v in ordered_connections[-N_PAIRS:]])
     final_connections = sorted(circuits, key=len)
+
     print(
         len(final_connections[-3])
         * len(final_connections[-2])
         * len(final_connections[-1])
     )
-    return
 
 
 def part02(inputs: list[str]) -> None:
     assert len(inputs) == 20 or len(inputs) == 1000
     N_PAIRS = 10 if len(inputs) == 20 else 1000
 
-    junctions: list[list[int]] = [list(int(i) for i in l.split(",")) for l in inputs]
-    adjacency_matrix: list[list[float]] = [
-        [distance(box, other) for other in junctions] for box in junctions
-    ]
-
-    values = dict()
-    for i, row in enumerate(adjacency_matrix):
-        for j, v in enumerate(row):
-            if j > i:
-                values[v] = (i, j)
+    junctions = [tuple(int(i) for i in l.split(",")) for l in inputs]
+    values = get_connection_lengths(tuple(junctions))
 
     ordered_connections = sorted(list(values.keys()), reverse=True)
     circuits = merge_circuits(
