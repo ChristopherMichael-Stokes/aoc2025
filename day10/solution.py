@@ -14,7 +14,6 @@ from z3 import z3
 OFF = "."
 ON = "#"
 STATE_MAP: dict[str, int] = {OFF: 0, ON: 1}
-SOLVED = "sat"
 
 
 def next_machine(
@@ -41,9 +40,8 @@ def part01(inputs: list[str]) -> None:
     # all combinations of all buttons, but storing the common states of button effect on state xyz
     n_switches = 0
     for machine in next_machine(inputs):
-        initial_state, desired_state, buttons, requirements = machine
+        _, desired_state, buttons, _= machine
         # thought 1. turn everything into bit masks
-        state = 0
         target_state = 0
         for i, v in enumerate(desired_state):
             target_state = target_state | (v << i)
@@ -88,7 +86,7 @@ def part01(inputs: list[str]) -> None:
 def part02(inputs: list[str]) -> None:
     n_switches = 0
     for machine in next_machine(inputs):
-        initial_state, desired_state, buttons, requirements = machine
+        _, _, buttons, requirements = machine
         possible_characters: list[str] = [chr(ord("a") + i) for i in range(26)]
 
         # Each button has an unkown coefficient and we want to find the minimum sum of coefficients
