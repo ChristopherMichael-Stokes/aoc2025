@@ -3,3 +3,6 @@ __pycache__/
 inputs.txt
 .DS_Store
 *.swp
+.venv/
+.ruff_cache/
+.mypy_cache/
