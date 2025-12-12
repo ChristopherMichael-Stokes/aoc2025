@@ -15,13 +15,14 @@ day_url = https://adventofcode.com/2025/day/$(day)
 # $make day=2 
 new_inputs: .venv/bin/python
 	mkdir -p $(day_str)
-	touch $(day_str)/inputs.txt
-	touch $(day_str)/sample.txt
-	cp $(solution_template) $(day_str)/solution.py
+	touch $(day_str)/inputs.txt && code $(day_str)/inputs.txt
+	touch $(day_str)/sample.txt && code $(day_str)/sample.txt
+	cp $(solution_template) $(day_str)/solution.py && code $(day_str)/solution.py
 
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		open -g "$(day_url)"; \
 	fi
+
 
 
 .PHONY:
