@@ -74,11 +74,15 @@ class BlockConstraints(NamedTuple):
     x: z3.ArithRef
     y: z3.ArithRef
     variant: npt.NDarray
+    block_id: int
 
 
-def can_solve(
+def can_solve_slow(
     blocks: list[list[npt.NDArray]], grid: npt.NDArray, grid_requirements: list[int]
 ) -> bool:
+    # Integer programming type approach - works well for small inputs
+    # but is intractible for unsolveable problems or problems with a lot of boxes
+    # as we have an insane amount of constraints r.e. overlapping logic
     grid_height, grid_width = grid.shape
     grid_area: int = grid_height * grid_width
     block_units: int = sum(blocks[r][0].sum() for r in grid_requirements)
@@ -87,9 +91,7 @@ def can_solve(
         return False
 
     available_blocks: list[list[npt.NDArray]] = [blocks[r] for r in grid_requirements]
-    # Frame as constraint problem somehow?
     solver = z3.Solver()
-    # TODO: add constraints
 
     # For each block + variant, model it via a boolean is_used, + x & y of top left corner
     blocks_constraints: list[list[BlockConstraints]] = []
@@ -110,8 +112,7 @@ def can_solve(
                 y + block_height <= grid_height,
             )
             solver.add(z3.Implies(used, block_within_bounds))
-
-            constraints = BlockConstraints(used=used, x=x, y=y, variant=variant)
+            constraints = BlockConstraints(used=used, x=x, y=y, variant=variant, block_id=i*10+j)
             blocks_constraints[-1].append(constraints)
 
         # For each block, only one variant can be active
@@ -161,26 +162,113 @@ def can_solve(
                     has_overlap = z3.Or(cell_collisions)
                     solver.add(z3.Implies(both_active, z3.Not(has_overlap)))
 
-    if solver.check() == z3.sat:
+    solved = solver.check()
+    if solved == z3.sat:
         model = solver.model()
         print(model)
 
-    return solver.check() == z3.sat
+    return solved == z3.sat
+
+
+def can_solve_less_slow(
+    blocks: list[list[npt.NDArray]], grid: npt.NDArray, grid_requirements: list[int]
+) -> bool:
+    # More z3, this time modelling the grid cells as containing the id
+    # of each block variant placed in it (like demonstrated in the 
+    # complete examples).  Is a little faster as there is less total constraints,
+    # but still probably intractable for large problem spaces
+    grid_height, grid_width = grid.shape
+    grid_area: int = grid_height * grid_width
+    block_units: int = sum(blocks[r][0].sum() for r in grid_requirements)
+
+    if grid_area < block_units:
+        return False
+
+    available_blocks: list[list[npt.NDArray]] = [blocks[r] for r in grid_requirements]
+    solver = z3.Solver()
+    # Random chatgpt suggested optimisation params - does actually have >2x speedup though not sure how it effects scalability
+    solver.set('random_seed', 42)  # Reproducibility
+    solver.set('phase_selection', 0)  # Try different phase selection (0-5)
+    solver.set('restart_strategy', 1)  # Geometric restarts
+    solver.set('restart_factor', 1.5)  # More aggressive restarts
+    solver.set('arith.solver', 2)  # Try different arithmetic solvers (1-6)
+    solver.set('arith.propagate_eqs', True)  # Propagate equalities eagerly
+    solver.set('arith.eager_eq_axioms', True)
+    solver.set('solve_eqs', True)  # Solve equations to reduce variables
+    solver.set('elim_unconstrained', True)  # Eliminate unconstrained vars
+    solver.set('relevancy', 2)  # Maximum relevancy (0-2)
+
+    z3_grid: list[list[z3.ArithRef]] = [
+        [z3.Int(f"cell_{i}_{j}") for j in range(grid_width)] for i in range(grid_height)
+    ]
+    # Each cell must be between 0 or 1
+    for row in z3_grid:
+        for cell in row:
+            # solver.add(z3.And(cell >= 0, cell <= 1))
+            solver.add(cell >= 0)
+
+    # For each block + variant, model it via a boolean is_used, + x & y of top left corner
+    blocks_constraints: list[list[BlockConstraints]] = []
+    for i, block_variants in enumerate(available_blocks):
+        blocks_constraints.append([])
+        for j, variant in enumerate(block_variants):
+            block_id = f"block{i}_variant{j}"
+            used = z3.Bool(f"{block_id}_used")
+            x = z3.Int(f"{block_id}_x")
+            y = z3.Int(f"{block_id}_y")
+            # If a block is active, x & y must be within the grid
+            block_height, block_width = variant.shape
+
+            block_within_bounds = z3.And(
+                x >= 0,
+                x + block_width <= grid_width,
+                y >= 0,
+                y + block_height <= grid_height,
+            )
+            solver.add(z3.Implies(used, block_within_bounds))
+
+            constraints = BlockConstraints(used=used, x=x, y=y, variant=variant, block_id=i*10+j)
+            blocks_constraints[-1].append(constraints)
+
+        # For each block, only one variant can be active
+        actives = [bc.used for bc in blocks_constraints[-1]]
+        solver.add(z3.Sum(actives) == 1)
+
+    # For each block that is active, it must not overlap with any other active variants of other blocks
+    for block_constraints in blocks_constraints:
+        for bc in block_constraints:
+            # For every possible cell in the grid,
+            # if the block is used and on that cell,
+            # the cell value will be the id of the block
+            for y, row in enumerate(z3_grid):
+                for x, cell in enumerate(row):
+                    if y + bc.variant.shape[0] <= grid_height and x + bc.variant.shape[1] <= grid_width:
+                        covered_cells = [
+                            (dy, dx)
+                            for dy in range(bc.variant.shape[0])
+                            for dx in range(bc.variant.shape[1])
+                            if bc.variant[dy, dx] == 1
+                        ]
+                        for (dy, dx) in covered_cells:
+                            solver.add(z3.Implies(
+                                z3.And(bc.used, bc.x == x, bc.y == y),
+                                z3_grid[y+dy][x+dx] == bc.block_id,
+                            ))
+
+    solved = solver.check()
+    if solved == z3.sat:
+        model = solver.model()
+        print(model)
+
+    return solved == z3.sat
 
 
 def part01(inputs: list[str]) -> None:
     blocks, grids, grids_requirements = parse_inputs(inputs)
-
-    # Brute force will not be possibe imo, though could throw togethr
-    # enough heuristics to check if inputs are incompatible rather
-    # than look for possible solution?
-
-    # If we get to a point where a solution may be possible then try the brue-force check?
-    #  -> hopefully we can then get to a solution quick enough
-
     solvable = []
     for idx, (grid, grid_requirements) in enumerate(zip(grids, grids_requirements)):
-        solvable.append(can_solve(blocks, grid, grid_requirements))
+        # solvable.append(can_solve_slow(blocks, grid, grid_requirements))
+        solvable.append(can_solve_less_slow(blocks, grid, grid_requirements))
 
     print(solvable)
     print(f"{sum(solvable)=}")
