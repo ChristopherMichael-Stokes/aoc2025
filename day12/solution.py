@@ -7,7 +7,6 @@
 # ///
 import re
 from typing import NamedTuple
-
 import numpy as np
 import numpy.typing as npt
 from z3 import z3
@@ -77,7 +76,9 @@ class BlockConstraints(NamedTuple):
     variant: npt.NDarray
 
 
-def can_solve(blocks, grid, grid_requirements) -> bool:
+def can_solve(
+    blocks: list[list[npt.NDArray]], grid: npt.NDArray, grid_requirements: list[int]
+) -> bool:
     grid_height, grid_width = grid.shape
     grid_area: int = grid_height * grid_width
     block_units: int = sum(blocks[r][0].sum() for r in grid_requirements)
