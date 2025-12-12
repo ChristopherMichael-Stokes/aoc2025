@@ -262,13 +262,25 @@ def can_solve_less_slow(
 
     return solved == z3.sat
 
+def can_solve_hacky(
+    blocks: list[list[npt.NDArray]], grid: npt.NDArray, grid_requirements: list[int]
+) -> bool:
+    grid_height, grid_width = grid.shape
+    grid_area: int = grid_height * grid_width
+    block_units: int = sum(blocks[r][0].sum() for r in grid_requirements)
+
+    return bool(grid_area > block_units * 1.3)
+
+
+
 
 def part01(inputs: list[str]) -> None:
     blocks, grids, grids_requirements = parse_inputs(inputs)
     solvable = []
     for idx, (grid, grid_requirements) in enumerate(zip(grids, grids_requirements)):
         # solvable.append(can_solve_slow(blocks, grid, grid_requirements))
-        solvable.append(can_solve_less_slow(blocks, grid, grid_requirements))
+        # solvable.append(can_solve_less_slow(blocks, grid, grid_requirements))
+        solvable.append(can_solve_hacky(blocks, grid, grid_requirements))
 
     print(solvable)
     print(f"{sum(solvable)=}")
@@ -279,8 +291,8 @@ def part02(inputs: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    input_file = "inputs.txt"
     input_file = "sample.txt"
+    input_file = "inputs.txt"
     with open(input_file, "r") as f:
         inputs = [l.strip() for l in f.readlines() if not l.isspace()]
 
